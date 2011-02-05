@@ -17,6 +17,33 @@ var (
 	GOROOT string
 )
 
+var disabledPackages = map[string]bool{
+	// tests require testdata
+	"archive/tar":    true,
+	"archive/zip":    true,
+	"compress/zlib":  true,
+	"debug/elf":      true,
+	"debug/macho":    true,
+	"debug/pe":       true,
+	"go/parser":      true,
+	"go/printer":     true,
+	"go/typechecker": true,
+	"html":           true,
+	"image/png":      true,
+	// Watcher.Watch() failed: inotify_add_watch: no such file or directory
+	"os/inotify": true,
+	//FAIL: smtp.TestBasic: Expected AUTH supported
+	"smtp": true,
+	//FAIL: mime.TestType
+	"mime": true,
+	//panic: Reuse of exported var name: requests
+	"expvar": true,
+	//signal was SIGCHLD: child status has changed, want SIGHUP: terminal line hangup
+	"os/signal": true,
+	//template.TestAll: unexpected write error: open _test/test.tmpl: no such file or directory
+	"template": true,
+}
+
 type pkgDirsVisitor struct {
 	pkgDirs []string
 }
@@ -99,8 +126,6 @@ func packageName(pkgDir string) string {
 }
 
 func copyTestPackages(testRoot string, pkgDirs []string) os.Error {
-	// TODO check for GOBIN in the environment
-	gopack := path.Join(GOROOT, "bin", "gopack")
 	for _, pkgDir := range pkgDirs {
 		pkgName := packageName(pkgDir)
 		pkgPrefix, _ := path.Split(pkgName)
@@ -115,24 +140,6 @@ func copyTestPackages(testRoot string, pkgDirs []string) os.Error {
 			err = copyFile(newPkg, pkg)
 			if err != nil {
 				return err
-			}
-			// TODO make this work with other GOARCHes
-			testObj := path.Join(pkgDir, "_gotest_.6")
-			args := []string{"gopack", "grc", newPkg, testObj}
-
-			fmt.Printf("%+v\n", args)
-
-			p, err := os.StartProcess(gopack, args, os.Environ(), "", nil)
-			if err != nil {
-				return err
-			}
-			defer p.Release()
-			waitmsg, err := p.Wait(0)
-			if err != nil {
-				return err
-			}
-			if waitmsg.ExitStatus() != 0 {
-				return os.NewError("gopack failed")
 			}
 		}
 	}
@@ -161,6 +168,13 @@ func parseTestMains(pkgDirs []string) ([]*TestMain, os.Error) {
 		tests := make([]string, 0)
 		benchmarks := make([]string, 0)
 
+		pkgName := packageName(pkgDir)
+		if _, ok := disabledPackages[pkgName]; ok {
+			fmt.Fprintf(os.Stderr, "SKIPPING DISABLED PACKAGE: %s\n", pkgName)
+			continue
+		}
+		pkgParts := strings.Split(pkgName, "/", -1)
+
 		for _, decl := range fileNode.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.VAR || len(genDecl.Specs) != 1 {
@@ -176,15 +190,18 @@ func parseTestMains(pkgDirs []string) ([]*TestMain, os.Error) {
 				val := elt.(*ast.CompositeLit).Elts[0].(*ast.BasicLit).Value
 				str := string(val)
 				str = str[1 : len(str)-1]
-				str = strings.SplitAfter(str, ".", 2)[1]
+				parts := strings.Split(str, ".", 2)
+				if parts[0] != pkgParts[len(pkgParts)-1] {
+					fmt.Fprintf(os.Stderr, "SKIPPING PACKAGE WITH EXTERNAL TESTS: %s\n", str)
+					continue
+				}
 				if name == "tests" {
-					tests = append(tests, str)
+					tests = append(tests, parts[1])
 				} else {
-					benchmarks = append(benchmarks, str)
+					benchmarks = append(benchmarks, parts[1])
 				}
 			}
 		}
-		pkgName := packageName(pkgDir)
 		if len(tests) == 0 && len(benchmarks) == 0 {
 			continue
 		}
@@ -212,13 +229,13 @@ func generateRunner(filename string, testMains []*TestMain) os.Error {
 		fmt.Fprint(src, "tests := []testing.InternalTest{\n")
 		for _, test := range testMain.tests {
 			testFunc := pkgName + "." + test
-			fmt.Fprintf(src, "{\"%s\", %s},\n", testFunc, testFunc)
+			fmt.Fprintf(src, "{\"%s\", %s},\n", testMain.pkgName+"."+test, testFunc)
 		}
 		fmt.Fprint(src, "}\n")
 		fmt.Fprint(src, "benchmarks := []testing.InternalBenchmark{\n")
 		for _, bench := range testMain.benchmarks {
 			benchFunc := pkgName + "." + bench
-			fmt.Fprintf(src, "{\"%s\", %s},\n", benchFunc, benchFunc)
+			fmt.Fprintf(src, "{\"%s\", %s},\n", testMain.pkgName+"."+bench, benchFunc)
 		}
 		fmt.Fprint(src, "}\n")
 		fmt.Fprint(src, "for {\n")
@@ -260,15 +277,7 @@ func main() {
 	}
 	testRoot := path.Join(cwd, "go.gostress")
 	if GOROOT == testRoot {
-		panic("Test cannot overwrite GOROOT")
-	}
-	err = os.RemoveAll(testRoot)
-	if err != nil {
-		panic(err)
-	}
-	err = os.MkdirAll(testRoot, 0777)
-	if err != nil {
-		panic(err)
+		panic("Test would overwrite GOROOT")
 	}
 
 	pkgDirs := findPackageDirs()
@@ -284,14 +293,6 @@ func main() {
 	}
 
 	err = generateRunner("go.go", testMains)
-	if err != nil {
-		panic(err)
-	}
-
-	osarch := runtime.GOOS + "_" + runtime.GOARCH
-	gorootTesting := path.Join(GOROOT, "pkg", osarch, "testing.a")
-	testRootTesting := path.Join(testRoot, "pkg", osarch, "testing.a")
-	err = copyFile(testRootTesting, gorootTesting)
 	if err != nil {
 		panic(err)
 	}
