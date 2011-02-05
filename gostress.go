@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -206,19 +207,20 @@ func parseTestMains(pkgDirs []string) ([]*TestMain, os.Error) {
 
 func generateRunner(filename string, testMains []*TestMain) os.Error {
 	src := bytes.NewBufferString("")
-
 	fmt.Fprint(src, "package main\n\n")
-	fmt.Fprint(src, "import \"testing\"\n\n")
+	fmt.Fprint(src, "import \"sync\"\n")
+	fmt.Fprint(src, "import \"testing\"\n")
 	fmt.Fprint(src, "import (\n")
 	for _, testMain := range testMains {
 		name := testMain.underscorePkgName()
 		fmt.Fprintf(src, "%s \"%s\"\n", name, testMain.pkgName)
 	}
 	fmt.Fprint(src, ")\n")
-
 	fmt.Fprint(src, "func main() {\n")
+	fmt.Fprint(src, "wg := new(sync.WaitGroup)\n")
 	for _, testMain := range testMains {
 		pkgName := testMain.underscorePkgName()
+		fmt.Fprint(src, "wg.Add(1)\n")
 		fmt.Fprint(src, "go func() {\n")
 		fmt.Fprint(src, "tests := []testing.InternalTest{\n")
 		for _, test := range testMain.tests {
@@ -232,14 +234,14 @@ func generateRunner(filename string, testMains []*TestMain) os.Error {
 			fmt.Fprintf(src, "{\"%s\", %s},\n", testMain.pkgName+"."+bench, benchFunc)
 		}
 		fmt.Fprint(src, "}\n")
-		fmt.Fprint(src, "for {\n")
+		fmt.Fprintf(src, "for i := 0; i < %d; i++ {\n", iters)
 		fmt.Fprint(src, "testing.Main(regexp.MatchString, tests)\n")
 		fmt.Fprint(src, "testing.RunBenchmarks(regexp.MatchString, benchmarks)\n")
 		fmt.Fprint(src, "}\n")
-		fmt.Fprint(src, "}()\n")
+		fmt.Fprint(src, "wg.Done()\n")
+		fmt.Fprint(src, "}()\n\n")
 	}
-	fmt.Fprint(src, "c := make(chan bool)\n")
-	fmt.Fprint(src, "<-c\n")
+	fmt.Fprint(src, "wg.Wait()\n")
 	fmt.Fprint(src, "}\n")
 
 	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -292,7 +294,11 @@ func main() {
 	}
 }
 
+var iters int
+
 func init() {
+	flag.IntVar(&iters, "iters", 100, "iterations per goroutine")
+	flag.Parse()
 	GOROOT = os.Getenv("GOROOT")
 	if GOROOT == "" {
 		panic("GOROOT not set in environment")
