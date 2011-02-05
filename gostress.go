@@ -18,18 +18,8 @@ var (
 )
 
 var disabledPackages = map[string]bool{
-	// tests require testdata
-	"archive/tar":    true,
-	"archive/zip":    true,
-	"compress/zlib":  true,
-	"debug/elf":      true,
-	"debug/macho":    true,
-	"debug/pe":       true,
-	"go/parser":      true,
-	"go/printer":     true,
-	"go/typechecker": true,
-	"html":           true,
-	"image/png":      true,
+	//FAIL: go/parser.TestParse4... might be a testdata issue
+	"go/parser": true,
 	// Watcher.Watch() failed: inotify_add_watch: no such file or directory
 	"os/inotify": true,
 	//FAIL: smtp.TestBasic: Expected AUTH supported
@@ -42,6 +32,10 @@ var disabledPackages = map[string]bool{
 	"os/signal": true,
 	//template.TestAll: unexpected write error: open _test/test.tmpl: no such file or directory
 	"template": true,
+	//FAIL: syslog.TestWrite: s.Info() = '""', but wanted '"<3>syslog_test: write test\n"'
+	"syslog": true,
+	//panic: gob: registering duplicate types for *gob.interfaceIndirectTestT
+	"gob": true,
 }
 
 type pkgDirsVisitor struct {
