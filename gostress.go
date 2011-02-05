@@ -1,7 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/printer"
+	"go/token"
 	"os"
 	"path"
 	"strings"
@@ -11,7 +16,7 @@ var (
 	GOROOT string
 )
 
-type pkgDirsVisitor struct{
+type pkgDirsVisitor struct {
 	pkgDirs []string
 }
 
@@ -20,17 +25,17 @@ func (v *pkgDirsVisitor) VisitDir(pathName string, f *os.FileInfo) bool {
 		pkgDir, _ := path.Split(pathName)
 		v.pkgDirs = append(v.pkgDirs, path.Clean(pkgDir))
 	}
-    return true
+	return true
 }
 
 func (v *pkgDirsVisitor) VisitFile(pathName string, f *os.FileInfo) {}
 
-type packagesVisitor struct{
+type packagesVisitor struct {
 	packages []string
 }
 
 func (v *packagesVisitor) VisitDir(pathName string, f *os.FileInfo) bool {
-    return true
+	return true
 }
 
 func (v *packagesVisitor) VisitFile(pathName string, f *os.FileInfo) {
@@ -62,7 +67,7 @@ func copyFile(dest, src string) os.Error {
 	if err != nil {
 		return err
 	}
-	destFile, err := os.Open(dest, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0666)
+	destFile, err := os.Open(dest, os.O_CREAT|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
 		return err
 	}
@@ -87,10 +92,14 @@ func copyFile(dest, src string) os.Error {
 	return nil
 }
 
-func copyTestPackages(testRoot string, pkgDirs []string) os.Error {
+func packageName(pkgDir string) string {
 	srcPkg := path.Join(GOROOT, "src", "pkg")
+	return pkgDir[len(srcPkg)+1:]
+}
+
+func copyTestPackages(testRoot string, pkgDirs []string) os.Error {
 	for _, pkgDir := range pkgDirs {
-		pkgName := pkgDir[len(srcPkg)+1:]
+		pkgName := packageName(pkgDir)
 		pkgPrefix, _ := path.Split(pkgName)
 		pkgPrefix = path.Clean(pkgPrefix)
 		testPkgDir := path.Join(testRoot, "pkg", pkgPrefix)
@@ -108,15 +117,86 @@ func copyTestPackages(testRoot string, pkgDirs []string) os.Error {
 	return nil
 }
 
-func parseTestMains(pkgDirs []string) os.Error {
+type TestMain struct {
+	pkgName           string
+	tests, benchmarks []string
+}
+
+func parseTestMains(pkgDirs []string) ([]*TestMain, os.Error) {
+	testMains := make([]*TestMain, 0)
+
 	for _, pkgDir := range pkgDirs {
 		testmain := path.Join(pkgDir, "_testmain.go")
+		fileNode, err := parser.ParseFile(token.NewFileSet(), testmain, nil, 0)
+		if err != nil {
+			return nil, err
+		}
 
+		tests := make([]string, 0)
+		benchmarks := make([]string, 0)
 
-		_ = testmain
-		break
+		for _, decl := range fileNode.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.VAR || len(genDecl.Specs) != 1 {
+				continue
+			}
+			spec := genDecl.Specs[0].(*ast.ValueSpec)
+			name := spec.Names[0].Name
+			if name != "tests" && name != "benchmarks" {
+				continue
+			}
+			elts := spec.Values[0].(*ast.CompositeLit).Elts
+			for _, elt := range elts {
+				val := elt.(*ast.CompositeLit).Elts[0].(*ast.BasicLit).Value
+				str := string(val)
+				str = str[1 : len(str)-1]
+				str = strings.SplitAfter(str, ".", 2)[1]
+				if name == "tests" {
+					tests = append(tests, str)
+				} else {
+					benchmarks = append(benchmarks, str)
+				}
+			}
+		}
+		pkgName := packageName(pkgDir)
+		if len(tests) == 0 && len(benchmarks) == 0 {
+			continue
+		}
+		testMains = append(testMains, &TestMain{pkgName, tests, benchmarks})
 	}
-	
+	return testMains, nil
+}
+
+func generateRunner(filename string, testMains []*TestMain) os.Error {
+	src := bytes.NewBufferString("")
+
+	fmt.Fprint(src, "package main\n\n")
+	fmt.Fprint(src, "import (\n")
+	for _, testMain := range testMains {
+		name := strings.Replace(testMain.pkgName, "/", "_", -1)
+		fmt.Fprintf(src, "%s \"%s\"\n", name, testMain.pkgName)
+	}
+	fmt.Fprint(src, ")\n")
+
+	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	//fmt.Printf("%s\n", string(src.Bytes()))
+
+	fileNode, err := parser.ParseFile(token.NewFileSet(), filename, src.Bytes(), parser.ParseComments)
+	if err != nil {
+		panic(err)
+	}
+
+	config := printer.Config{printer.TabIndent, 8, nil}
+	_, err = config.Fprint(file, token.NewFileSet(), fileNode)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -145,14 +225,18 @@ func main() {
 		panic(err)
 	}
 
-	err = parseTestMains(pkgDirs)
+	testMains, err := parseTestMains(pkgDirs)
+	if err != nil {
+		panic(err)
+	}
+
+	err = generateRunner("go.go", testMains)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func init() {
-	_ = fmt.Printf
 	GOROOT = os.Getenv("GOROOT")
 	if GOROOT == "" {
 		panic("GOROOT not set in environment")
