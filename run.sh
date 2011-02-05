@@ -15,7 +15,7 @@ find $GOROOT/src/pkg -name 'testdata' -type d | xargs -I DIR cp -a DIR .
 GOROOT=`pwd`/go.gostress 6g -o go.6 go.go
 GOROOT=`pwd`/go.gostress 6l -o go go.6
 
-GOMAXPROCS=1 ./go -v=true
+GOMAXPROCS=1 ./go -v=true -benchmarks=.
 
 #this explodes quite quickly...
-#GOMAXPROCS=10 ./go -v=true
+#GOMAXPROCS=10 ./go -v=true -benchmarks=.
