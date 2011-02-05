@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 )
 
@@ -98,19 +99,40 @@ func packageName(pkgDir string) string {
 }
 
 func copyTestPackages(testRoot string, pkgDirs []string) os.Error {
+	// TODO check for GOBIN in the environment
+	gopack := path.Join(GOROOT, "bin", "gopack")
 	for _, pkgDir := range pkgDirs {
 		pkgName := packageName(pkgDir)
 		pkgPrefix, _ := path.Split(pkgName)
 		pkgPrefix = path.Clean(pkgPrefix)
-		testPkgDir := path.Join(testRoot, "pkg", pkgPrefix)
+		testPkgDir := path.Join(testRoot, "pkg", runtime.GOOS+"_"+runtime.GOARCH, pkgPrefix)
 		err := os.MkdirAll(testPkgDir, 0777)
 		if err != nil {
 			return err
 		}
 		for _, pkg := range findPackages(path.Join(pkgDir, "_test")) {
-			err = copyFile(path.Join(testPkgDir, path.Base(pkg)), pkg)
+			newPkg := path.Join(testPkgDir, path.Base(pkg))
+			err = copyFile(newPkg, pkg)
 			if err != nil {
 				return err
+			}
+			// TODO make this work with other GOARCHes
+			testObj := path.Join(pkgDir, "_gotest_.6")
+			args := []string{"gopack", "grc", newPkg, testObj}
+
+			fmt.Printf("%+v\n", args)
+
+			p, err := os.StartProcess(gopack, args, os.Environ(), "", nil)
+			if err != nil {
+				return err
+			}
+			defer p.Release()
+			waitmsg, err := p.Wait(0)
+			if err != nil {
+				return err
+			}
+			if waitmsg.ExitStatus() != 0 {
+				return os.NewError("gopack failed")
 			}
 		}
 	}
@@ -120,6 +142,10 @@ func copyTestPackages(testRoot string, pkgDirs []string) os.Error {
 type TestMain struct {
 	pkgName           string
 	tests, benchmarks []string
+}
+
+func (tm *TestMain) underscorePkgName() string {
+	return strings.Replace(tm.pkgName, "/", "_", -1)
 }
 
 func parseTestMains(pkgDirs []string) ([]*TestMain, os.Error) {
@@ -171,12 +197,39 @@ func generateRunner(filename string, testMains []*TestMain) os.Error {
 	src := bytes.NewBufferString("")
 
 	fmt.Fprint(src, "package main\n\n")
+	fmt.Fprint(src, "import \"testing\"\n\n")
 	fmt.Fprint(src, "import (\n")
 	for _, testMain := range testMains {
-		name := strings.Replace(testMain.pkgName, "/", "_", -1)
+		name := testMain.underscorePkgName()
 		fmt.Fprintf(src, "%s \"%s\"\n", name, testMain.pkgName)
 	}
 	fmt.Fprint(src, ")\n")
+
+	fmt.Fprint(src, "func main() {\n")
+	for _, testMain := range testMains {
+		pkgName := testMain.underscorePkgName()
+		fmt.Fprint(src, "go func() {\n")
+		fmt.Fprint(src, "tests := []testing.InternalTest{\n")
+		for _, test := range testMain.tests {
+			testFunc := pkgName + "." + test
+			fmt.Fprintf(src, "{\"%s\", %s},\n", testFunc, testFunc)
+		}
+		fmt.Fprint(src, "}\n")
+		fmt.Fprint(src, "benchmarks := []testing.InternalBenchmark{\n")
+		for _, bench := range testMain.benchmarks {
+			benchFunc := pkgName + "." + bench
+			fmt.Fprintf(src, "{\"%s\", %s},\n", benchFunc, benchFunc)
+		}
+		fmt.Fprint(src, "}\n")
+		fmt.Fprint(src, "for {\n")
+		fmt.Fprint(src, "testing.Main(regexp.MatchString, tests)\n")
+		fmt.Fprint(src, "testing.RunBenchmarks(regexp.MatchString, benchmarks)\n")
+		fmt.Fprint(src, "}\n")
+		fmt.Fprint(src, "}()\n")
+	}
+	fmt.Fprint(src, "c := make(chan bool)\n")
+	fmt.Fprint(src, "<-c\n")
+	fmt.Fprint(src, "}\n")
 
 	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
@@ -231,6 +284,14 @@ func main() {
 	}
 
 	err = generateRunner("go.go", testMains)
+	if err != nil {
+		panic(err)
+	}
+
+	osarch := runtime.GOOS + "_" + runtime.GOARCH
+	gorootTesting := path.Join(GOROOT, "pkg", osarch, "testing.a")
+	testRootTesting := path.Join(testRoot, "pkg", osarch, "testing.a")
+	err = copyFile(testRootTesting, gorootTesting)
 	if err != nil {
 		panic(err)
 	}
