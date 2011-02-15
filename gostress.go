@@ -417,7 +417,8 @@ func writePackageTest(filename string, testMain *TestMain) os.Error {
 func loadBlackList() []string {
 	file, err := os.Open("blacklist", os.O_RDONLY, 0764)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Could not find blacklist\n")
+		return []string{""}
 	}
 
 	var character [1]byte
@@ -586,7 +587,7 @@ func generateReport() os.Error {
 	}
 	for _, f := range files {
 		if !f.IsDirectory() {
-			if len(f.Name) > 5 && f.Name[1:5] == "Test" {
+			if len(f.Name) > 5 && f.Name[1:5] == "Test" && !strings.Contains(f.Name, ".6") {
 				err = copyFile(dirName+"/"+f.Name, f.Name)
 				if err != nil {
 					panic(err)
