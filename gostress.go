@@ -212,7 +212,7 @@ func parseTestMains(pkgDirs []string) ([]*TestMain, os.Error) {
 func writeSingleTest(testMain *TestMain, testName string, testType int, filename string) os.Error {
 
 	src := bytes.NewBufferString("")
-	fmt.Fprint(src, "// " + testMain.pkgName + "." + testName + "\n")
+	fmt.Fprint(src, "// "+testMain.pkgName+"."+testName+"\n")
 	fmt.Fprint(src, "//\n")
 	fmt.Fprint(src, "package main\n\n")
 	fmt.Fprint(src, "import \"sync\"\n")
@@ -277,25 +277,25 @@ func writeSingleTest(testMain *TestMain, testName string, testType int, filename
 	return nil
 }
 
-func executeSingleTest (test string) os.Error {
+func executeSingleTest(test string) os.Error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	origEnv := os.Getenv("GOROOT")
 
-	err = os.Setenv("GOROOT", cwd + "/go.gostress")
+	err = os.Setenv("GOROOT", cwd+"/go.gostress")
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 	err = os.Setenv("GOMAXPROCS", "10")
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 
 	defer os.Setenv("GOROOT", origEnv)
 
-	myProcess, err := os.StartProcess(origEnv + "/bin/6g", []string{"", "-e", "-o", test + ".6", test}, nil, ".", nil)
+	myProcess, err := os.StartProcess(origEnv+"/bin/6g", []string{"", "-e", "-o", test + ".6", test}, nil, ".", nil)
 	if err != nil {
 		return err
 	}
@@ -304,10 +304,10 @@ func executeSingleTest (test string) os.Error {
 		return err
 	}
 	if waitMsg.ExitStatus() != 0 {
-		return os.NewError ("did not compile")
+		return os.NewError("did not compile")
 	}
 
-	myProcess, err = os.StartProcess(origEnv + "/bin/6l", []string{"", "-o", "test", test + ".6"},nil, ".", nil)
+	myProcess, err = os.StartProcess(origEnv+"/bin/6l", []string{"", "-o", "test", test + ".6"}, nil, ".", nil)
 	//myProcess, err = os.StartProcess("./myTest", []string{"-o test", test + ".6"},nil, ".", []*os.File {os.Stdin, os.Stdout, os.Stderr})
 	if err != nil {
 		return err
@@ -317,12 +317,12 @@ func executeSingleTest (test string) os.Error {
 		return err
 	}
 	if waitMsg.ExitStatus() != 0 {
-		return os.NewError ("did not link")
+		return os.NewError("did not link")
 	}
 
-	errLog, err := os.Open (test + ".output", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0666)
+	errLog, err := os.Open(test+".output", os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0666)
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 
 	myProcess, err = os.StartProcess("./test", []string{"./test"}, nil, ".", []*os.File{os.Stdin, nil, errLog})
@@ -334,21 +334,21 @@ func executeSingleTest (test string) os.Error {
 		return err
 	}
 	if waitMsg.ExitStatus() != 0 {
-		return os.NewError ("did not run")
+		return os.NewError("did not run")
 	}
 
 	//process went smoothly
 	errLog.Close()
-	err = os.Remove (test + ".output")
+	err = os.Remove(test + ".output")
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 	return nil
 }
 
-func writePackageTest (filename string, testMain *TestMain) os.Error {
+func writePackageTest(filename string, testMain *TestMain) os.Error {
 	src := bytes.NewBufferString("")
-	fmt.Fprint(src, "// " + testMain.pkgName + ".head\n")
+	fmt.Fprint(src, "// "+testMain.pkgName+".head\n")
 	fmt.Fprint(src, "//\n")
 	fmt.Fprint(src, "package main\n\n")
 	fmt.Fprint(src, "import \"sync\"\n")
@@ -414,65 +414,65 @@ func writePackageTest (filename string, testMain *TestMain) os.Error {
 	return nil
 }
 
-func loadBlackList () []string{
-	file, err := os.Open ("blacklist", os.O_RDONLY, 0764)
+func loadBlackList() []string {
+	file, err := os.Open("blacklist", os.O_RDONLY, 0764)
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 
-	var character [1] byte
+	var character [1]byte
 	count := 0
 	done := false
 	for !done {
 		switch nr, er := file.Read(character[:]); true {
-			case nr == 0:
+		case nr == 0:
+			count = count + 1
+			done = true
+			break
+		case er != nil:
+			panic(er)
+		case nr > 0:
+			if character[0] == '\n' {
 				count = count + 1
-				done = true
-				break
-			case er != nil:
-				panic (er)
-			case nr > 0:
-				if (character[0] == '\n') {
-					count = count + 1
-				}
+			}
 		}
 	}
 
-	if (count == 0) {
+	if count == 0 {
 		return nil
 	}
 
-	var result = make ([]string, count)
+	var result = make([]string, count)
 	name := ""
 	count = 0
 
 	file.Close()
 
-	file, err = os.Open ("blacklist", os.O_RDONLY, 0764)
-	if (err != nil) {
-		fmt.Printf ("Could not open blacklist\n")
+	file, err = os.Open("blacklist", os.O_RDONLY, 0764)
+	if err != nil {
+		fmt.Printf("Could not open blacklist\n")
 		//panic (err)
 	}
 
 	done = false
 	for !done {
 		switch nr, er := file.Read(character[:]); true {
-			case nr == 0:
-				if (name != "") {
-					result[count] = name
-				}
-				done = true
-				break
-			case er != nil:
-				panic (er)
-			case nr > 0:
-				if (character[0] == '\n') {
-					result[count] = name
-					count = count + 1
-					name = ""
-				} else {
-					name = name + string(character[0])
-				}
+		case nr == 0:
+			if name != "" {
+				result[count] = name
+			}
+			done = true
+			break
+		case er != nil:
+			panic(er)
+		case nr > 0:
+			if character[0] == '\n' {
+				result[count] = name
+				count = count + 1
+				name = ""
+			} else {
+				name = name + string(character[0])
+			}
 		}
 	}
 
@@ -482,24 +482,24 @@ func loadBlackList () []string{
 
 }
 
-func listContains (list []string, word string) bool {
+func listContains(list []string, word string) bool {
 	for _, s := range list {
-		if (word == s) {
-			return true;
+		if word == s {
+			return true
 		}
 	}
-	return false;
+	return false
 }
 
 const (
-	TEST string = "TEST"
+	TEST      string = "TEST"
 	BENCHMARK string = "BENCHMARK"
-	PACKAGE string = "PACKAGE"
+	PACKAGE   string = "PACKAGE"
 )
 
-func runTest (testMain *TestMain, testName string, typeOfTest string, testCount int, blackList []string) {
-	var fullName,filename string
-	if (typeOfTest == PACKAGE) {
+func runTest(testMain *TestMain, testName string, typeOfTest string, testCount int, blackList []string) {
+	var fullName, filename string
+	if typeOfTest == PACKAGE {
 		filename = "pTest" + testMain.underscorePkgName() + ".go"
 		fullName = testMain.pkgName + ".head"
 	} else {
@@ -507,117 +507,116 @@ func runTest (testMain *TestMain, testName string, typeOfTest string, testCount 
 		fullName = testMain.pkgName + "." + testName
 	}
 
-	fmt.Printf ("%s", fullName)
-	if (listContains (blackList, fullName) || listContains (blackList, testMain.pkgName)) {
-		fmt.Printf (", skipped\n")
+	fmt.Printf("%s", fullName)
+	if listContains(blackList, fullName) || listContains(blackList, testMain.pkgName) {
+		fmt.Printf(", skipped\n")
 		return
 	}
 
 	var err os.Error
 	switch typeOfTest {
 	case TEST:
-		err = writeSingleTest (testMain, testName, 0, filename)
+		err = writeSingleTest(testMain, testName, 0, filename)
 	case BENCHMARK:
-		err = writeSingleTest (testMain, testName, 1, filename)
+		err = writeSingleTest(testMain, testName, 1, filename)
 	case PACKAGE:
-		err = writePackageTest (filename, testMain)
+		err = writePackageTest(filename, testMain)
 	}
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 
-	err = executeSingleTest (filename)
+	err = executeSingleTest(filename)
 	if err != nil {
 		//panic (err)
-		fmt.Printf (", failed\n");
+		fmt.Printf(", failed\n")
 	} else {
-		fmt.Printf (", passed\n");
+		fmt.Printf(", passed\n")
 	}
 }
 
 func generateSurvey(testMains []*TestMain) os.Error {
-	fmt.Printf ("SURVEY START\n");
+	fmt.Printf("SURVEY START\n")
 
-	blackList := loadBlackList();
-	fmt.Printf ("blackList: %s\n", blackList)
+	blackList := loadBlackList()
+	fmt.Printf("blackList: %s\n", blackList)
 
 	for _, testMain := range testMains {
 		testCount := 0
 		for _, test := range testMain.tests {
-			runTest (testMain, test, TEST, testCount, blackList)
+			runTest(testMain, test, TEST, testCount, blackList)
 			testCount = testCount + 1
 		}
 		for _, benchmark := range testMain.benchmarks {
-			runTest (testMain, benchmark, BENCHMARK, testCount, blackList)
+			runTest(testMain, benchmark, BENCHMARK, testCount, blackList)
 			testCount = testCount + 1
 		}
-		runTest (testMain, "", PACKAGE, 0, blackList)
+		runTest(testMain, "", PACKAGE, 0, blackList)
 	}
-	fmt.Printf ("SURVEY DONE\n");
+	fmt.Printf("SURVEY DONE\n")
 	return nil
 }
 
 type MapEntry struct {
-	key string
+	key   string
 	value string
 }
 
 type MapEntryArray []MapEntry
 
-func (arr MapEntryArray) Len () int {
-	return len (arr)
+func (arr MapEntryArray) Len() int {
+	return len(arr)
 }
 
-func (arr MapEntryArray) Less (i, j int) bool {
+func (arr MapEntryArray) Less(i, j int) bool {
 	return arr[i].key < arr[j].key
 }
 
-func (arr MapEntryArray) Swap (i, j int) {
+func (arr MapEntryArray) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
 
-func generateReport () os.Error{
+func generateReport() os.Error {
 
 	dirName := "report"
-	os.Mkdir (dirName, 0764)
-	files, err := ioutil.ReadDir (".")
+	os.Mkdir(dirName, 0764)
+	files, err := ioutil.ReadDir(".")
 	if err != nil {
 		return err
 	}
 	for _, f := range files {
-		if !f.IsDirectory () {
+		if !f.IsDirectory() {
 			if len(f.Name) > 5 && f.Name[1:5] == "Test" {
-				err = copyFile (dirName + "/" + f.Name, f.Name)
+				err = copyFile(dirName+"/"+f.Name, f.Name)
 				if err != nil {
-					panic (err)
+					panic(err)
 				}
 			}
 		}
 	}
-	err = copyFile (dirName + "/blacklist", "blacklist")
+	err = copyFile(dirName+"/blacklist", "blacklist")
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 
 	packageMap := make(map[string]string)
 
-	files, err = ioutil.ReadDir (dirName)
+	files, err = ioutil.ReadDir(dirName)
 	if err != nil {
 		return err
 	}
-
 
 	//sort.Sort (FileInfoArray(files))
 
 	for _, f := range files {
 		if !f.IsDirectory() && strings.HasSuffix(f.Name, ".go") {
-			line, err := readFirstLine (dirName + "/" + f.Name)
+			line, err := readFirstLine(dirName + "/" + f.Name)
 			if err != nil {
-				panic (err)
+				panic(err)
 			}
 			words := strings.Split(line, " ", -1)
 			details := strings.Split(words[1], ".", -1)
-			_, err = os.Open (f.Name + ".output", os.O_RDONLY, 0764)
+			_, err = os.Open(f.Name+".output", os.O_RDONLY, 0764)
 			if err != nil {
 				packageMap[details[0]] = packageMap[details[0]] + ";(" + details[1] + "," + f.Name + ")"
 			} else {
@@ -628,21 +627,21 @@ func generateReport () os.Error{
 
 	//sort.Sort (packageMap)
 
-	htmlFile, err := os.Open (dirName + "/index.html", os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0764)
+	htmlFile, err := os.Open(dirName+"/index.html", os.O_RDWR|os.O_CREAT|os.O_TRUNC, 0764)
 	if err != nil {
 		return err
 	}
 
-	htmlFile.WriteString ("<HTML>\n")
-	htmlFile.WriteString ("<body>\n")
-	htmlFile.WriteString ("<h1>Gostress Report</h1>\n")
+	htmlFile.WriteString("<HTML>\n")
+	htmlFile.WriteString("<body>\n")
+	htmlFile.WriteString("<h1>Gostress Report</h1>\n")
 	//fmt.Printf ("map\n%s\n", packageMap)
 
-	htmlFile.WriteString ("<a href=\"blacklist\">View Blacklist</a>\n")
+	htmlFile.WriteString("<a href=\"blacklist\">View Blacklist</a>\n")
 
-	htmlFile.WriteString ("<table width=\"400\">\n")
+	htmlFile.WriteString("<table width=\"400\">\n")
 
-	packageMapArray := make ([]MapEntry, len (packageMap))
+	packageMapArray := make([]MapEntry, len(packageMap))
 	//packageMapArray[0] = new (MapEntry)
 	i := 0
 	for pack, detail := range packageMap {
@@ -650,32 +649,32 @@ func generateReport () os.Error{
 		i = i + 1
 	}
 
-	sort.Sort (MapEntryArray(packageMapArray))
+	sort.Sort(MapEntryArray(packageMapArray))
 
 	count := 0
 	for _, entry := range packageMapArray {
 		pack := entry.key
 		detail := entry.value
-		fmt.Printf ("pack: %s, %s\n", pack, detail)
-		htmlFile.WriteString ("\t<tbody>\n")
-		if (strings.Contains (detail, ".output")) {
-			htmlFile.WriteString ("\t\t<tr><td style=\"background-color: #FF0000\" width=\"50\"></td><td><a href=\"")
+		fmt.Printf("pack: %s, %s\n", pack, detail)
+		htmlFile.WriteString("\t<tbody>\n")
+		if strings.Contains(detail, ".output") {
+			htmlFile.WriteString("\t\t<tr><td style=\"background-color: #FF0000\" width=\"50\"></td><td><a href=\"")
 		} else {
-			htmlFile.WriteString ("\t\t<tr><td style=\"background-color: #00FF00\" width=\"50\"></td><td><a href=\"")
+			htmlFile.WriteString("\t\t<tr><td style=\"background-color: #00FF00\" width=\"50\"></td><td><a href=\"")
 		}
-		htmlFile.WriteString (strings.Replace(pack, "/", "_", -1))
-		htmlFile.WriteString (".html\">")
-		htmlFile.WriteString (pack)
-		htmlFile.WriteString ("</a>")
-		htmlFile.WriteString ("</td></tr>")
+		htmlFile.WriteString(strings.Replace(pack, "/", "_", -1))
+		htmlFile.WriteString(".html\">")
+		htmlFile.WriteString(pack)
+		htmlFile.WriteString("</a>")
+		htmlFile.WriteString("</td></tr>")
 
-		htmlFile.WriteString ("\t</tbody>\n\n")
+		htmlFile.WriteString("\t</tbody>\n\n")
 		count = count + 1
 	}
 
-	htmlFile.WriteString ("</table>\n")
+	htmlFile.WriteString("</table>\n")
 
-	htmlFile.WriteString ("</BODY></HTML>\n")
+	htmlFile.WriteString("</BODY></HTML>\n")
 
 	htmlFile.Close()
 
@@ -683,15 +682,15 @@ func generateReport () os.Error{
 		pack := entry.key
 		detail := entry.value
 
-		file, err := os.Open ("report/" + strings.Replace (pack, "/", "_", -1) + ".html", os.O_RDWR | os.O_CREATE | os.O_TRUNC, 0764)
+		file, err := os.Open("report/"+strings.Replace(pack, "/", "_", -1)+".html", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0764)
 		if err != nil {
-			panic (err)
+			panic(err)
 		}
 
-		file.WriteString ("<html>\n")
-		file.WriteString ("<body>\n")
-		file.WriteString ("<table>\n")
-		words := strings.Split (detail, ";", -1)
+		file.WriteString("<html>\n")
+		file.WriteString("<body>\n")
+		file.WriteString("<table>\n")
+		words := strings.Split(detail, ";", -1)
 
 		for _, w := range words {
 			details := strings.Split(w, ",", -1)
@@ -699,29 +698,29 @@ func generateReport () os.Error{
 				continue
 			}
 
-			file.WriteString ("<tr><td style=\"background-color: ")
-			if (len(details) == 3) {
-				file.WriteString ("#FF0000")
+			file.WriteString("<tr><td style=\"background-color: ")
+			if len(details) == 3 {
+				file.WriteString("#FF0000")
 			} else {
-				file.WriteString ("#00FF00")
+				file.WriteString("#00FF00")
 			}
-			file.WriteString ("\" width=\"50\"></td>")
-			file.WriteString ("<td><a href=\"")
-			file.WriteString (strings.Trim(details[1], "()"))
-			file.WriteString ("\">")
-			file.WriteString (strings.Trim(details[0], "()"))
-			file.WriteString ("</a>")
-			if (len(details) == 3) {
-				file.WriteString ("...<a href=\"")
-				file.WriteString (strings.Trim (details[2], "()"))
-				file.WriteString ("\">output</a>")
+			file.WriteString("\" width=\"50\"></td>")
+			file.WriteString("<td><a href=\"")
+			file.WriteString(strings.Trim(details[1], "()"))
+			file.WriteString("\">")
+			file.WriteString(strings.Trim(details[0], "()"))
+			file.WriteString("</a>")
+			if len(details) == 3 {
+				file.WriteString("...<a href=\"")
+				file.WriteString(strings.Trim(details[2], "()"))
+				file.WriteString("\">output</a>")
 			}
-			file.WriteString ("</td></tr>\n")
+			file.WriteString("</td></tr>\n")
 		}
 
-		file.WriteString ("</table>")
-		file.WriteString ("</body>")
-		file.WriteString ("</html>")
+		file.WriteString("</table>")
+		file.WriteString("</body>")
+		file.WriteString("</html>")
 
 		file.Close()
 	}
@@ -729,17 +728,17 @@ func generateReport () os.Error{
 	return nil
 }
 
-func readFirstLine (fileName string) (string, os.Error) {
-	file, err := os.Open (fileName, os.O_RDONLY, 0764)
+func readFirstLine(fileName string) (string, os.Error) {
+	file, err := os.Open(fileName, os.O_RDONLY, 0764)
 	if err != nil {
 		return "", err
 	}
 
 	str := ""
-	var buff[1] byte
-	file.Read (buff[:])
+	var buff [1]byte
+	file.Read(buff[:])
 	for buff[0] != '\n' {
-		str = strings.Join ([]string{str, string(buff[0])}, "")
+		str = strings.Join([]string{str, string(buff[0])}, "")
 		file.Read(buff[:])
 	}
 	file.Close()
@@ -830,22 +829,22 @@ func main() {
 		panic(err)
 	}
 
-	if (mode == RUNNER) {
+	if mode == RUNNER {
 		err = generateRunner("go.go", testMains)
 		if err != nil {
 			panic(err)
 		}
-	} else if (mode == SURVEY) {
+	} else if mode == SURVEY {
 		err = generateSurvey(testMains)
 		if err != nil {
 			panic(err)
 		}
-		err = generateReport ()
+		err = generateReport()
 		if err != nil {
 			panic(err)
 		}
 	} else {
-		fmt.Printf ("No valid mode selected\n")
+		fmt.Printf("No valid mode selected\n")
 	}
 }
 
@@ -874,4 +873,3 @@ func init() {
 	}
 	GOROOT = path.Clean(GOROOT)
 }
-
