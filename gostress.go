@@ -597,7 +597,8 @@ func generateReport () os.Error{
 	}
 	err = copyFile (dirName + "/blacklist", "blacklist")
 	if err != nil {
-		panic (err)
+		//panic (err)
+		fmt.Printf ("No blacklist to copy\n")
 	}
 
 	packageMap := make(map[string]string)
