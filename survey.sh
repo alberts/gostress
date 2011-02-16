@@ -16,6 +16,9 @@ find $GOROOT/src/pkg -name 'testdata' -type d | xargs -I DIR cp -a DIR .
 
 rm -rf *.go.6
 
+rm -rf sTest*
+rm -rf pTest*
+
 #GOROOT=`pwd`/go.gostress 6g -e -o go.6 sTestxml20.go
 #GOROOT=`pwd`/go.gostress 6l -o go go.6
 

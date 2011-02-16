@@ -256,7 +256,7 @@ func writeSingleTest(testMain *TestMain, testName string, testType int, filename
 
 	//fmt.Printf("%s\n", string(src.Bytes()))
 
-	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0644)
+	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func executeSingleTest (test string) os.Error {
 	}
 	origEnv := os.Getenv("GOROOT")
 
-	err = os.Setenv("GOROOT", cwd + "/go.gostress")
+	/*err = os.Setenv("GOROOT", cwd + "/go.gostress")
 	if err != nil {
 		panic (err)
 	}
@@ -293,9 +293,22 @@ func executeSingleTest (test string) os.Error {
 		panic (err)
 	}
 
-	defer os.Setenv("GOROOT", origEnv)
+	defer os.Setenv("GOROOT", origEnv)*/
 
-	myProcess, err := os.StartProcess(origEnv + "/bin/6g", []string{"", "-e", "-o", test + ".6", test}, nil, ".", nil)
+	//Set up compiler and linker location
+	var compiler, linker string
+
+	//If GOBIN is defined rather use that
+	gobinEnv := os.Getenv ("GOBIN")
+	if gobinEnv != "" {
+		compiler = gobinEnv + "/6g"
+		linker = gobinEnv + "/6l"
+	} else {
+		compiler = origEnv + "/bin/6g"
+		linker = origEnv + "/bin/6l"
+	}
+
+	myProcess, err := os.StartProcess(compiler, []string{"", "-e", "-o", test + ".6", test}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", nil)
 	if err != nil {
 		return err
 	}
@@ -307,7 +320,7 @@ func executeSingleTest (test string) os.Error {
 		return os.NewError ("did not compile")
 	}
 
-	myProcess, err = os.StartProcess(origEnv + "/bin/6l", []string{"", "-o", "test", test + ".6"},nil, ".", nil)
+	myProcess, err = os.StartProcess(linker, []string{"", "-o", "test", test + ".6"},[]string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", nil)
 	//myProcess, err = os.StartProcess("./myTest", []string{"-o test", test + ".6"},nil, ".", []*os.File {os.Stdin, os.Stdout, os.Stderr})
 	if err != nil {
 		return err
@@ -325,7 +338,7 @@ func executeSingleTest (test string) os.Error {
 		panic (err)
 	}
 
-	myProcess, err = os.StartProcess("./test", []string{"./test"}, nil, ".", []*os.File{os.Stdin, nil, errLog})
+	myProcess, err = os.StartProcess("./test", []string{"./test"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", []*os.File{os.Stdin, nil, errLog})
 	if err != nil {
 		return err
 	}
@@ -391,7 +404,7 @@ func writePackageTest (filename string, testMain *TestMain) os.Error {
 	fmt.Fprint(src, "wg.Wait()\n")
 	fmt.Fprint(src, "}\n")
 
-	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0644)
+	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
 		return err
 	}
@@ -415,7 +428,7 @@ func writePackageTest (filename string, testMain *TestMain) os.Error {
 }
 
 func loadBlackList () []string{
-	file, err := os.Open ("blacklist", os.O_RDONLY, 0764)
+	file, err := os.Open ("blacklist", os.O_RDONLY, 0)
 	if err != nil {
 		fmt.Printf ("Could not find blacklist\n")
 		return []string{""}
@@ -449,7 +462,7 @@ func loadBlackList () []string{
 
 	file.Close()
 
-	file, err = os.Open ("blacklist", os.O_RDONLY, 0764)
+	file, err = os.Open ("blacklist", os.O_RDONLY, 0)
 	if (err != nil) {
 		fmt.Printf ("Could not open blacklist\n")
 		//panic (err)
@@ -619,7 +632,7 @@ func generateReport () os.Error{
 			}
 			words := strings.Split(line, " ", -1)
 			details := strings.Split(words[1], ".", -1)
-			_, err = os.Open (f.Name + ".output", os.O_RDONLY, 0764)
+			_, err = os.Open (f.Name + ".output", os.O_RDONLY, 0666)
 			if err != nil {
 				packageMap[details[0]] = packageMap[details[0]] + ";(" + details[1] + "," + f.Name + ")"
 			} else {
@@ -630,7 +643,7 @@ func generateReport () os.Error{
 
 	//sort.Sort (packageMap)
 
-	htmlFile, err := os.Open (dirName + "/index.html", os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0764)
+	htmlFile, err := os.Open (dirName + "/index.html", os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0666)
 	if err != nil {
 		return err
 	}
@@ -685,7 +698,7 @@ func generateReport () os.Error{
 		pack := entry.key
 		detail := entry.value
 
-		file, err := os.Open ("report/" + strings.Replace (pack, "/", "_", -1) + ".html", os.O_RDWR | os.O_CREATE | os.O_TRUNC, 0764)
+		file, err := os.Open ("report/" + strings.Replace (pack, "/", "_", -1) + ".html", os.O_RDWR | os.O_CREATE | os.O_TRUNC, 0666)
 		if err != nil {
 			panic (err)
 		}
@@ -732,7 +745,7 @@ func generateReport () os.Error{
 }
 
 func readFirstLine (fileName string) (string, os.Error) {
-	file, err := os.Open (fileName, os.O_RDONLY, 0764)
+	file, err := os.Open (fileName, os.O_RDONLY, 0666)
 	if err != nil {
 		return "", err
 	}
@@ -788,7 +801,7 @@ func generateRunner(filename string, testMains []*TestMain) os.Error {
 	fmt.Fprint(src, "wg.Wait()\n")
 	fmt.Fprint(src, "}\n")
 
-	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0644)
+	file, err := os.Open(filename, os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
 		return err
 	}
