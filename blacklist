@@ -20,6 +20,7 @@ ebnf.head
 encoding/git85.head
 encoding/ascii85.TestDecoder
 exp/datafmt
+exp/eval
 go/printer
 go/scanner
 go/typechecker
@@ -41,3 +42,4 @@ path.TestWalk
 path.head
 websocket.TestTrailingSpaces
 websocket.head
+compress/flate.TestDeflate
