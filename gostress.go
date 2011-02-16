@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"io/ioutil"
 	"sort"
+	"time"
 )
 
 var (
@@ -315,7 +316,9 @@ func executeSingleTest(test string) os.Error {
 		return os.NewError("did not compile")
 	}
 
-	myProcess, err = os.StartProcess(linker, []string{"", "-o", "test", test + ".6"}, nil, ".", nil)
+	//fmt.Printf ("\nCompiled\n")
+
+	myProcess, err = os.StartProcess(linker, []string{"", "-o", "test", test + ".6"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", nil)
 
 	//myProcess, err = os.StartProcess("./myTest", []string{"-o test", test + ".6"},nil, ".", []*os.File {os.Stdin, os.Stdout, os.Stderr})
 	if err != nil {
@@ -328,23 +331,25 @@ func executeSingleTest(test string) os.Error {
 	if waitMsg.ExitStatus() != 0 {
 		return os.NewError("did not link")
 	}
+	//fmt.Printf ("\nLinked\n")
 
 	errLog, err := os.Open(test+".output", os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0666)
 	if err != nil {
 		panic(err)
 	}
 
-	myProcess, err = os.StartProcess("./test", []string{"./test"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", []*os.File{os.Stdin, nil, errLog})
-
-	if err != nil {
-		return err
-	}
-	waitMsg, err = myProcess.Wait(0)
-	if err != nil {
-		return err
-	}
-	if waitMsg.ExitStatus() != 0 {
-		return os.NewError("did not run")
+	response := make (chan bool)
+	ticker := time.NewTicker(timeout * 1000000000)
+	var boolResp bool
+	go pushTest (cwd, response, errLog)
+	select {
+	case boolResp = <-response:
+		if boolResp == false {
+			return os.NewError ("Test case did not return normal")
+		}
+	case <-ticker.C:
+		errLog.WriteString ("GOSTRESS TIMEOUT!!!\n")
+		return os.NewError ("Test case timeout")
 	}
 
 	//process went smoothly
@@ -355,6 +360,21 @@ func executeSingleTest(test string) os.Error {
 		panic(err)
 	}
 	return nil
+}
+
+func pushTest (cwd string, response chan bool, errLog *os.File) {
+	myProcess, err := os.StartProcess("./test", []string{"./test"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", []*os.File{os.Stdin, nil, errLog})
+	if err != nil {
+		response <- false
+	}
+	waitMsg, err := myProcess.Wait(0)
+	if err != nil {
+		response <- false
+	}
+	if waitMsg.ExitStatus() != 0 {
+		response <- false
+	}
+	response <- true
 }
 
 
@@ -872,6 +892,7 @@ func main() {
 
 var iters int
 var mode string
+var timeout int64
 
 const (
 	RUNNER string = "runner"
@@ -881,6 +902,7 @@ const (
 func init() {
 	flag.IntVar(&iters, "iters", 100, "iterations per goroutine")
 	flag.StringVar(&mode, "mode", RUNNER, "mode of operation, either \"runner\" or \"survey\"")
+	flag.Int64Var(&timeout, "timeout", 600, "timeout for each individual test (seconds)")
 	flag.Parse()
 	GOROOT = os.Getenv("GOROOT")
 	if GOROOT == "" {

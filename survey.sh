@@ -12,7 +12,7 @@ mkdir -p go.gostress
 cp -a $GOROOT/pkg go.gostress
 find $GOROOT/src/pkg -name 'testdata' -type d | xargs -I DIR cp -a DIR .
 
-./gostress -iters=100 -mode="survey"
+./gostress -iters=100 -mode="survey" -timeout=600
 
 rm -rf *.go.6
 
