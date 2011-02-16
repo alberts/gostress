@@ -228,25 +228,22 @@ func writeSingleTest(testMain *TestMain, testName string, testType int, filename
 	fmt.Fprint(src, "wg := new(sync.WaitGroup)\n")
 	pkgName := testMain.underscorePkgName()
 
-	if testType == 0 {
-		fmt.Fprint(src, "tests := []testing.InternalTest{\n")
-		testFunc := pkgName + "." + testName
-		fmt.Fprintf(src, "{\"%s\", %s},\n", testMain.pkgName+"."+testName, testFunc)
-		fmt.Fprint(src, "}\n")
-	} else if testType == 1 {
-		fmt.Fprint(src, "benchmarks := []testing.InternalBenchmark{\n")
-		benchFunc := pkgName + "." + testName
-		fmt.Fprintf(src, "{\"%s\", %s},\n", testMain.pkgName+"."+testName, benchFunc)
-		fmt.Fprint(src, "}\n")
-	}
 
 	fmt.Fprintf(src, "for i := 0; i < %d; i++ {\n", iters)
 
 	fmt.Fprint(src, "wg.Add(1)\n")
 	fmt.Fprint(src, "go func() {\n")
 	if testType == 0 {
+		fmt.Fprint(src, "tests := []testing.InternalTest{\n")
+		testFunc := pkgName + "." + testName
+		fmt.Fprintf(src, "{\"%s\", %s},\n", testMain.pkgName+"."+testName, testFunc)
+		fmt.Fprint(src, "}\n")
 		fmt.Fprint(src, "testing.Main(regexp.MatchString, tests)\n")
 	} else if testType == 1 {
+		fmt.Fprint(src, "benchmarks := []testing.InternalBenchmark{\n")
+		benchFunc := pkgName + "." + testName
+		fmt.Fprintf(src, "{\"%s\", %s},\n", testMain.pkgName+"."+testName, benchFunc)
+		fmt.Fprint(src, "}\n")
 		fmt.Fprint(src, "testing.RunBenchmarks(regexp.MatchString, benchmarks)\n")
 	}
 
@@ -337,6 +334,7 @@ func executeSingleTest(test string) os.Error {
 	if err != nil {
 		panic(err)
 	}
+	defer errLog.Close()
 
 	response := make (chan bool)
 	ticker := time.NewTicker(timeout * 1000000000)
@@ -353,7 +351,6 @@ func executeSingleTest(test string) os.Error {
 	}
 
 	//process went smoothly
-	errLog.Close()
 
 	err = os.Remove(test + ".output")
 	if err != nil {
