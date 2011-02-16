@@ -1,0 +1,46 @@
+gostress-survey
+===============
+
+gostress is a stress test for the Go runtime. gostress-survey is an add on which 
+lets you run each test case separately and generates an html report.
+
+
+How does it work?
+=================
+
+gostress-survey creates a separate .go file for each test case. It executes
+this test case as 100 separate threads. GOMAXPROCS is set at 10, so only 10
+of those 100 are executed at once. If the test case fails, then the concurrency
+has introduced a bug.
+
+Some test cases were never written with concurrency in mind, thus we've created
+a `blacklist` (Found in the root directory of the project). If any test is failing
+because it is simply written without concurrency in mind, we add it to the
+blacklist. This, hopefully, enables us to say that when a bug is reported by this program, it
+is due to a Go runtime issue.
+
+
+Getting Started
+===============
+
+Prepare $GOROOT for gostress:
+
+cd $GOROOT/src
+./all.bash
+
+cd ~
+git clone git://github.com/GideonRed/Gostress-survey.git
+
+cd Gostress-survey
+./survey.sh
+
+Instead of running all.bash, you could also run "make test" in
+$GOROOT/src/pkg to prepare $GOROOT for gostress.
+
+
+TODO
+====
+
+Elaborate the blacklist
+
+Clean up code, and improve portability
