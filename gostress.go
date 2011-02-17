@@ -300,7 +300,7 @@ func executeSingleTest(test string) os.Error {
 		linker = origEnv + "/bin/6l"
 	}
 
-	myProcess, err := os.StartProcess(compiler, []string{"", "-e", "-o", test + ".6", test}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", nil)
+	myProcess, err := os.StartProcess(compiler, []string{"", "-e", "-o", test + ".6", test}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS="+strconv.Itoa(gomaxproc)}, ".", nil)
 
 	if err != nil {
 		return err
@@ -315,7 +315,7 @@ func executeSingleTest(test string) os.Error {
 
 	//fmt.Printf ("\nCompiled\n")
 
-	myProcess, err = os.StartProcess(linker, []string{"", "-o", "work/test", test + ".6"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", nil)
+	myProcess, err = os.StartProcess(linker, []string{"", "-o", "work/test", test + ".6"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS="+strconv.Itoa(gomaxproc)}, ".", nil)
 
 	//myProcess, err = os.StartProcess("./myTest", []string{"-o test", test + ".6"},nil, ".", []*os.File {os.Stdin, os.Stdout, os.Stderr})
 	if err != nil {
@@ -371,7 +371,7 @@ func executeSingleTest(test string) os.Error {
 }
 
 func pushTest (cwd string, response chan bool, errLog *os.File) {
-	myProcess, err := os.StartProcess("test", []string{"test"}, []string{"PATH="+os.Getenv("PATH"),"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, "./work", []*os.File{os.Stdin, nil, errLog})
+	myProcess, err := os.StartProcess("test", []string{"test"}, []string{"PATH="+os.Getenv("PATH"),"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS="+strconv.Itoa(gomaxproc)}, "./work", []*os.File{os.Stdin, nil, errLog})
 	if err != nil {
 		response <- false
 	}
@@ -901,6 +901,7 @@ func main() {
 var iters int
 var mode string
 var timeout int64
+var gomaxproc int
 
 const (
 	RUNNER string = "runner"
@@ -911,6 +912,7 @@ func init() {
 	flag.IntVar(&iters, "iters", 100, "iterations per goroutine")
 	flag.StringVar(&mode, "mode", RUNNER, "mode of operation, either \"runner\" or \"survey\"")
 	flag.Int64Var(&timeout, "timeout", 600, "timeout for each individual test (seconds)")
+	flag.IntVar (&gomaxproc, "gomaxproc", 10, "set GOMAXPROC value during testing")
 	flag.Parse()
 	GOROOT = os.Getenv("GOROOT")
 	if GOROOT == "" {
