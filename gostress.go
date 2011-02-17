@@ -315,7 +315,7 @@ func executeSingleTest(test string) os.Error {
 
 	//fmt.Printf ("\nCompiled\n")
 
-	myProcess, err = os.StartProcess(linker, []string{"", "-o", "test", test + ".6"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", nil)
+	myProcess, err = os.StartProcess(linker, []string{"", "-o", "work/test", test + ".6"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", nil)
 
 	//myProcess, err = os.StartProcess("./myTest", []string{"-o test", test + ".6"},nil, ".", []*os.File {os.Stdin, os.Stdout, os.Stderr})
 	if err != nil {
@@ -336,18 +336,29 @@ func executeSingleTest(test string) os.Error {
 	}
 	defer errLog.Close()
 
-	response := make (chan bool)
-	ticker := time.NewTicker(timeout * 1000000000)
-	var boolResp bool
-	go pushTest (cwd, response, errLog)
-	select {
-	case boolResp = <-response:
-		if boolResp == false {
-			return os.NewError ("Test case did not return normal")
+	if timeout > 0 {
+		response := make (chan bool)
+		ticker := time.NewTicker(timeout * 1000000000)
+		var boolResp bool
+		go pushTest (cwd, response, errLog)
+		select {
+		case boolResp = <-response:
+			if boolResp == false {
+				return os.NewError ("Test case did not return normal")
+			}
+		case <-ticker.C:
+			errLog.WriteString ("GOSTRESS TIMEOUT!!!\n")
+			return os.NewError ("Test case timeout")
 		}
-	case <-ticker.C:
-		errLog.WriteString ("GOSTRESS TIMEOUT!!!\n")
-		return os.NewError ("Test case timeout")
+	} else {
+		response := make (chan bool)
+		go pushTest (cwd, response, errLog)
+		select {
+			case boolResp := <-response:
+			if (boolResp == false) {
+				return os.NewError ("Test case did not return normal")
+			}
+		}
 	}
 
 	//process went smoothly
@@ -360,7 +371,7 @@ func executeSingleTest(test string) os.Error {
 }
 
 func pushTest (cwd string, response chan bool, errLog *os.File) {
-	myProcess, err := os.StartProcess("./test", []string{"./test"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, ".", []*os.File{os.Stdin, nil, errLog})
+	myProcess, err := os.StartProcess("test", []string{"test"}, []string{"PATH="+os.Getenv("PATH"),"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS=10"}, "./work", []*os.File{os.Stdin, nil, errLog})
 	if err != nil {
 		response <- false
 	}

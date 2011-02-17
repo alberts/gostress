@@ -2,6 +2,7 @@
 set -xe
 
 rm -rf go.gostress testdata
+rm -rf work
 rm -rf output/*
 rm -rf *.output
 
@@ -9,10 +10,13 @@ make nuke
 make
 
 mkdir -p go.gostress
+mkdir -p work
 cp -a $GOROOT/pkg go.gostress
 find $GOROOT/src/pkg -name 'testdata' -type d | xargs -I DIR cp -a DIR .
+cp -r testdata work/
+cp -r go.gostress work/
 
-./gostress -iters=100 -mode="survey" -timeout=600
+./gostress -iters=100 -mode="survey" -timeout=0
 
 rm -rf *.go.6
 
