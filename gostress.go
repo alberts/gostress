@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"sort"
 	"time"
+	"syscall"
 )
 
 var (
@@ -336,11 +337,14 @@ func executeSingleTest(test string) os.Error {
 	}
 	defer errLog.Close()
 
+	var procResp *os.Process
+	response := make (chan bool)
+	processChan := make (chan *os.Process)
 	if timeout > 0 {
-		response := make (chan bool)
 		ticker := time.NewTicker(timeout * 1000000000)
 		var boolResp bool
-		go pushTest (cwd, response, errLog)
+		go pushTest (cwd, response, errLog, processChan)
+		procResp = <-processChan
 		select {
 		case boolResp = <-response:
 			if boolResp == false {
@@ -348,11 +352,11 @@ func executeSingleTest(test string) os.Error {
 			}
 		case <-ticker.C:
 			errLog.WriteString ("GOSTRESS TIMEOUT!!!\n")
+			syscall.Kill(procResp.Pid, syscall.SIGQUIT)
 			return os.NewError ("Test case timeout")
 		}
 	} else {
-		response := make (chan bool)
-		go pushTest (cwd, response, errLog)
+		go pushTest (cwd, response, errLog, processChan)
 		select {
 			case boolResp := <-response:
 			if (boolResp == false) {
@@ -370,17 +374,22 @@ func executeSingleTest(test string) os.Error {
 	return nil
 }
 
-func pushTest (cwd string, response chan bool, errLog *os.File) {
+func pushTest (cwd string, response chan bool, errLog *os.File, processChan chan *os.Process) {
 	myProcess, err := os.StartProcess("test", []string{"test"}, []string{"PATH="+os.Getenv("PATH"),"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS="+strconv.Itoa(gomaxproc)}, "./work", []*os.File{os.Stdin, nil, errLog})
 	if err != nil {
+		processChan <- nil
 		response <- false
+		return
 	}
+	processChan <- myProcess
 	waitMsg, err := myProcess.Wait(0)
 	if err != nil {
 		response <- false
+		return
 	}
 	if waitMsg.ExitStatus() != 0 {
 		response <- false
+		return
 	}
 	response <- true
 }
