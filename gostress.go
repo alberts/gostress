@@ -357,6 +357,7 @@ func executeSingleTest(test string) os.Error {
 		}
 	} else {
 		go pushTest (cwd, response, errLog, processChan)
+		procResp = <-processChan
 		select {
 			case boolResp := <-response:
 			if (boolResp == false) {
