@@ -16,7 +16,7 @@ find $GOROOT/src/pkg -name 'testdata' -type d | xargs -I DIR cp -a DIR .
 cp -r testdata work/
 cp -r go.gostress work/
 
-./gostress -iters=1000 -gomaxproc=100 -mode="survey" -timeout=0
+./gostress -iters=1000 -gomaxproc=100 -mode="survey" -timeout=3600
 
 rm -rf *.go.6
 

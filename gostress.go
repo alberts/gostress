@@ -553,20 +553,20 @@ const (
 	PACKAGE   string = "PACKAGE"
 )
 
-func runTest(testMain *TestMain, testName string, typeOfTest string, testCount int, blackList []string) {
+func runTest(testMain *TestMain, testName string, typeOfTest string, testCount int, blackList []string, nthTime int) bool {
 	var fullName, filename string
 	if typeOfTest == PACKAGE {
-		filename = "pTest" + testMain.underscorePkgName() + ".go"
+		filename = "pTest" + testMain.underscorePkgName() + "_" + strconv.Itoa(nthTime) + ".go"
 		fullName = testMain.pkgName + ".head"
 	} else {
-		filename = strings.Join([]string{"sTest", testMain.underscorePkgName(), "", strconv.Itoa(testCount), ".go"}, "")
+		filename = strings.Join([]string{"sTest", testMain.underscorePkgName(), "", strconv.Itoa(testCount), "_", strconv.Itoa(nthTime),".go"}, "")
 		fullName = testMain.pkgName + "." + testName
 	}
 
 	fmt.Printf("%s", fullName)
 	if listContains(blackList, fullName) || listContains(blackList, testMain.pkgName) {
 		fmt.Printf(", skipped\n")
-		return
+		return true
 	}
 
 	var err os.Error
@@ -586,10 +586,15 @@ func runTest(testMain *TestMain, testName string, typeOfTest string, testCount i
 	if err != nil {
 		//panic (err)
 		fmt.Printf(", failed\n")
+		return false
 	} else {
 		fmt.Printf(", passed\n")
+		return true
 	}
+	return false
 }
+
+var reruns int = 10
 
 func generateSurvey(testMains []*TestMain) os.Error {
 
@@ -597,19 +602,45 @@ func generateSurvey(testMains []*TestMain) os.Error {
 
 	blackList := loadBlackList()
 	fmt.Printf("blackList: %s\n", blackList)
+	resultFile, err := os.Open("result.file", os.O_RDWR|os.O_CREAT|os.O_TRUNC, 0764)
+	if err != nil {
+		panic (err)
+	}
 
 	for _, testMain := range testMains {
 		testCount := 0
 		for _, test := range testMain.tests {
-			runTest(testMain, test, TEST, testCount, blackList)
-			testCount = testCount + 1
+			failures := 0
+			for i := 0; i < reruns; i++ {
+				result := runTest(testMain, test, TEST, testCount, blackList, i)
+				if result == false {
+					failures++
+				}
+				testCount = testCount + 1
+			}
+			resultFile.WriteString (test + ":" + strconv.Itoa(failures) + "\n")
 		}
 		for _, benchmark := range testMain.benchmarks {
-			runTest(testMain, benchmark, BENCHMARK, testCount, blackList)
-			testCount = testCount + 1
+			failures := 0
+			for i := 0; i < reruns; i++ {
+				result := runTest(testMain, benchmark, BENCHMARK, testCount, blackList, i)
+				if result == false {
+					failures++
+				}
+				testCount = testCount + 1
+			}
+			resultFile.WriteString (benchmark + ":" + strconv.Itoa(failures) + "\n")
 		}
-		runTest(testMain, "", PACKAGE, 0, blackList)
+		failures := 0
+		for i := 0; i < reruns; i++ {
+			result := runTest(testMain, "", PACKAGE, 0, blackList, i)
+			if result == false {
+				failures++
+			}
+		}
+		resultFile.WriteString (testMain.pkgName + ":" + strconv.Itoa(failures) + "\n")
 	}
+	resultFile.Close()
 	fmt.Printf("SURVEY DONE\n")
 	return nil
 }
