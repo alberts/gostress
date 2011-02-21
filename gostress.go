@@ -594,8 +594,6 @@ func runTest(testMain *TestMain, testName string, typeOfTest string, testCount i
 	return false
 }
 
-var reruns int = 10
-
 func generateSurvey(testMains []*TestMain) os.Error {
 
 	fmt.Printf("SURVEY START\n")
@@ -943,6 +941,7 @@ var iters int
 var mode string
 var timeout int64
 var gomaxproc int
+var reruns int
 
 const (
 	RUNNER string = "runner"
@@ -954,6 +953,7 @@ func init() {
 	flag.StringVar(&mode, "mode", RUNNER, "mode of operation, either \"runner\" or \"survey\"")
 	flag.Int64Var(&timeout, "timeout", 600, "timeout for each individual test (seconds)")
 	flag.IntVar (&gomaxproc, "gomaxproc", 10, "set GOMAXPROC value during testing")
+	flag.IntVar (&reruns, "reruns", 10, "set amount by which each test must be rerun")
 	flag.Parse()
 	GOROOT = os.Getenv("GOROOT")
 	if GOROOT == "" {
