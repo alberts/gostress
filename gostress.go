@@ -614,8 +614,8 @@ func generateSurvey(testMains []*TestMain) os.Error {
 				if result == false {
 					failures++
 				}
-				testCount = testCount + 1
 			}
+			testCount = testCount + 1
 			resultFile.WriteString (test + ":" + strconv.Itoa(failures) + "\n")
 		}
 		for _, benchmark := range testMain.benchmarks {
@@ -625,8 +625,8 @@ func generateSurvey(testMains []*TestMain) os.Error {
 				if result == false {
 					failures++
 				}
-				testCount = testCount + 1
 			}
+			testCount = testCount + 1
 			resultFile.WriteString (benchmark + ":" + strconv.Itoa(failures) + "\n")
 		}
 		failures := 0
@@ -645,7 +645,7 @@ func generateSurvey(testMains []*TestMain) os.Error {
 
 type MapEntry struct {
 	key   string
-	value string
+	value setTestRecord
 }
 
 type MapEntryArray []MapEntry
@@ -661,6 +661,15 @@ func (arr MapEntryArray) Less(i, j int) bool {
 func (arr MapEntryArray) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
+
+type testRecord struct {
+	name string
+	failures int
+	failureFiles []string
+	origFileName string
+}
+
+type setTestRecord map[string]testRecord
 
 func generateReport() os.Error {
 
@@ -685,8 +694,13 @@ func generateReport() os.Error {
 	if err != nil {
 		panic(err)
 	}
+	err = copyFile(dirName+"/result.file", "result.file")
+	if err != nil {
+		panic(err)
+	}
 
-	packageMap := make(map[string]string)
+
+	packageMap := make(map[string]setTestRecord)
 
 	files, err = ioutil.ReadDir(dirName)
 	if err != nil {
@@ -696,19 +710,51 @@ func generateReport() os.Error {
 	//sort.Sort (FileInfoArray(files))
 
 	for _, f := range files {
-		if !f.IsDirectory() && strings.HasSuffix(f.Name, ".go") {
+		if !f.IsDirectory() && strings.HasSuffix(f.Name, "_0.go") {
 			line, err := readFirstLine(dirName + "/" + f.Name)
 			if err != nil {
 				panic(err)
 			}
 			words := strings.Split(line, " ", -1)
 			details := strings.Split(words[1], ".", -1)
+			/*var outputFile bool
 			_, err = os.Open(f.Name+".output", os.O_RDONLY, 0764)
 			if err != nil {
-				packageMap[details[0]] = packageMap[details[0]] + ";(" + details[1] + "," + f.Name + ")"
+				outputFile = false
 			} else {
-				packageMap[details[0]] = packageMap[details[0]] + ";(" + details[1] + "," + f.Name + "," + f.Name + ".output)"
+				outputFile = true
+			}*/
+			// >>package<<.Class
+			set := packageMap[details[0]]
+			if set == nil {
+				set = make (setTestRecord)
 			}
+			// package.>>Class<<
+			record := set[details[1]]
+			/*if record == nil {
+				record = &testRecord{}
+			}*/
+			record.name = details[1]
+			record.origFileName = f.Name
+			//fmt.Printf ("f.Name: %v\n", f.Name)
+			coreFileName := f.Name[0:strings.LastIndex(f.Name, "_")]
+			record.failures = 0
+			for _, outputF := range files {
+				if !outputF.IsDirectory() && strings.HasSuffix (outputF.Name, ".go.output") && strings.Contains(outputF.Name, coreFileName) {
+					record.failures = record.failures + 1
+					var contains bool = false
+					for _, ent := range record.failureFiles {
+						if ent == outputF.Name {
+							contains = true
+						}
+					}
+					if !contains {
+						record.failureFiles = append (record.failureFiles, outputF.Name)
+					}
+				}
+			}
+			set[details[1]] = record
+			packageMap[details[0]] = set
 		}
 	}
 
@@ -744,9 +790,9 @@ func generateReport() os.Error {
 	for _, entry := range packageMapArray {
 		pack := entry.key
 		detail := entry.value
-		fmt.Printf("pack: %s, %s\n", pack, detail)
+		//fmt.Printf("pack: %s, %s\n", pack, detail)
 		htmlFile.WriteString("\t<tbody>\n")
-		if strings.Contains(detail, ".output") {
+		if containsFault(detail) {
 			htmlFile.WriteString("\t\t<tr><td style=\"background-color: #FF0000\" width=\"50\"></td><td><a href=\"")
 		} else {
 			htmlFile.WriteString("\t\t<tr><td style=\"background-color: #00FF00\" width=\"50\"></td><td><a href=\"")
@@ -779,30 +825,48 @@ func generateReport() os.Error {
 		file.WriteString("<html>\n")
 		file.WriteString("<body>\n")
 		file.WriteString("<table>\n")
-		words := strings.Split(detail, ";", -1)
 
-		for _, w := range words {
-			details := strings.Split(w, ",", -1)
+		for packName, packRecord := range detail {
+			/*details := strings.Split(w, ",", -1)
 			if len(details) < 2 {
 				continue
-			}
+			}*/
 
-			file.WriteString("<tr><td style=\"background-color: ")
-			if len(details) == 3 {
+			/*file.WriteString("<tr><td style=\"background-color: ")
+			if packRecord.failures > 0 {
 				file.WriteString("#FF0000")
 			} else {
 				file.WriteString("#00FF00")
 			}
-			file.WriteString("\" width=\"50\"></td>")
+			file.WriteString("\" width=\"50\"></td>")*/
+
+			file.WriteString("<tr><td>\n")
+			file.WriteString("<table width=\"100%\" height=\"100%\">")
+			file.WriteString("<tr>\n")
+			for i := 0; i < packRecord.failures; i++ {
+				file.WriteString ("<td style=\"background-color: ")
+				file.WriteString("#FF0000")
+				file.WriteString("\" width=\"10\"></td>")
+			}
+			for i := packRecord.failures; i < reruns; i++ {
+				file.WriteString ("<td style=\"background-color: ")
+				file.WriteString("#00FF00")
+				file.WriteString("\" width=\"10\"></td>")
+			}
+			file.WriteString("</tr>")
+			file.WriteString("</table>")
+			file.WriteString("</td>")
+
 			file.WriteString("<td><a href=\"")
-			file.WriteString(strings.Trim(details[1], "()"))
+			file.WriteString(packRecord.origFileName)
 			file.WriteString("\">")
-			file.WriteString(strings.Trim(details[0], "()"))
+			file.WriteString(packName)
 			file.WriteString("</a>")
-			if len(details) == 3 {
+			//if len(details) == 3 {
+			for i := 0; i < packRecord.failures; i++ {
 				file.WriteString("...<a href=\"")
-				file.WriteString(strings.Trim(details[2], "()"))
-				file.WriteString("\">output</a>")
+				file.WriteString(packRecord.failureFiles[i])
+				file.WriteString("\">output" + strconv.Itoa(i) + "</a>")
 			}
 			file.WriteString("</td></tr>\n")
 		}
@@ -815,6 +879,15 @@ func generateReport() os.Error {
 	}
 
 	return nil
+}
+
+func containsFault (detail setTestRecord) bool{
+	for _, v := range detail {
+		if (v.failures > 0) {
+			return true
+		}
+	}
+	return false
 }
 
 func readFirstLine(fileName string) (string, os.Error) {
