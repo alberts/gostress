@@ -1,0 +1,51 @@
+big package contains Hilbert bug
+compress package contains panic: invalid memory address or nil pointer dereference
+
+tls.TestMarshallUnmarshall is concurrency unfriendly, uses global variable tests
+reflect.NewValue ?
+
+ebnf.TestGrammars seems not to be able to run concurrent
+
+encode.ascii85.TestDecoder relies on a global variable pairs
+enocde.git85: global variables being encoded and decoded
+
+exp.datafmt: uses global variable fset, concurrency unfriendly
+the entire exp.datafmt might have to be removed (might fix some issues if tests were created with threads?)
+
+exp.eval.TestExpr seems to fail due the same way as test big hilbert
+exe/eval depends on global variable compiler.go/universe and eval_test.go/fset
+
+go.printer.Test roep parser.ParseFile en dit is definitief nie concurrent friendly nie
+
+go.scanner het global variable fset
+
+go.typechecker.TestTypeCheck het ook global variable fset
+
+http.TestRequestWrite skryf no 'n globale veranderlikke reqWriteTests
+http.TestResponseWrite skryf no 'n globale veranderlikke reqWriteTests
+http.TestHostHandlers luister na dieselfde poort
+
+net.TestDialGoogle luister uit vir pakkies
+selfde vir net.TestUnixDatagramServer en net.TestUnixServer
+
+path.TestGlob lyk vir my werk net nie.
+path.TestWalk has a global tree variable
+
+websocket.TestTrailingSpaces opens sockets on same file
+
+compress/flate.TestDeflateInflate is concurrency unfriendly (line 226 deflate_test.go). Scarp that. It's because of getLargeDataChunks
+compress/zlib.Tests is concurrency unfriendly (reading and writing to same file)
+
+Some of the sorting is occuring inplace (concurrency unfriendly)
+
+crypto/elliptic.TestOnCurve .TestBaseMult .TestMarhal is concurrency unfriendly (all use global variable p224)
+
+json.TestMarhsalUnmarshal depends on global variable jsonBig
+
+log.TestAll depends on global std in log.go
+
+net.TestLookupStaticHost modifies global variable hostsPath
+
+compress/flate.TestDeflate depends on global arrays
+
+archives/zip.TestReader is complaining of too many open files
