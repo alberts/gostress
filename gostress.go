@@ -229,7 +229,6 @@ func writeSingleTest(testMain *TestMain, testName string, testType int, filename
 	fmt.Fprint(src, "wg := new(sync.WaitGroup)\n")
 	pkgName := testMain.underscorePkgName()
 
-
 	fmt.Fprintf(src, "for i := 0; i < %d; i++ {\n", iters)
 
 	fmt.Fprint(src, "wg.Add(1)\n")
@@ -287,21 +286,30 @@ func executeSingleTest(test string) os.Error {
 	}
 	origEnv := os.Getenv("GOROOT")
 
-
 	//Set up compiler and linker location
 	var compiler, linker string
+	var compilerExec, linkerExec string
 
-	//If GOBIN is defined rather use that
-	gobinEnv := os.Getenv ("GOBIN")
-	if gobinEnv != "" {
-		compiler = gobinEnv + "/6g"
-		linker = gobinEnv + "/6l"
+	gobinArch := os.Getenv("GOARCH")
+	if gobinArch == "amd64" {
+		compilerExec = "6g"
+		linkerExec = "6l"
 	} else {
-		compiler = origEnv + "/bin/6g"
-		linker = origEnv + "/bin/6l"
+		compilerExec = "8g"
+		linkerExec = "8l"
 	}
 
-	myProcess, err := os.StartProcess(compiler, []string{"", "-e", "-o", test + ".6", test}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS="+strconv.Itoa(gomaxproc)}, ".", nil)
+	//If GOBIN is defined rather use that
+	gobinEnv := os.Getenv("GOBIN")
+	if gobinEnv != "" {
+		compiler = gobinEnv + "/" + compilerExec
+		linker = gobinEnv + "/" + linkerExec
+	} else {
+		compiler = origEnv + "/bin/" + compilerExec
+		linker = origEnv + "/bin/" + linkerExec
+	}
+
+	myProcess, err := os.StartProcess(compiler, []string{"", "-e", "-o", test + ".6", test}, []string{"GOROOT=" + cwd + "/go.gostress", "GOMAXPROCS=" + strconv.Itoa(gomaxproc)}, ".", nil)
 
 	if err != nil {
 		return err
@@ -316,7 +324,7 @@ func executeSingleTest(test string) os.Error {
 
 	//fmt.Printf ("\nCompiled\n")
 
-	myProcess, err = os.StartProcess(linker, []string{"", "-o", "work/test", test + ".6"}, []string{"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS="+strconv.Itoa(gomaxproc)}, ".", nil)
+	myProcess, err = os.StartProcess(linker, []string{"", "-o", "work/test", test + ".6"}, []string{"GOROOT=" + cwd + "/go.gostress", "GOMAXPROCS=" + strconv.Itoa(gomaxproc)}, ".", nil)
 
 	//myProcess, err = os.StartProcess("./myTest", []string{"-o test", test + ".6"},nil, ".", []*os.File {os.Stdin, os.Stdout, os.Stderr})
 	if err != nil {
@@ -338,30 +346,30 @@ func executeSingleTest(test string) os.Error {
 	defer errLog.Close()
 
 	var procResp *os.Process
-	response := make (chan bool)
-	processChan := make (chan *os.Process)
+	response := make(chan bool)
+	processChan := make(chan *os.Process)
 	if timeout > 0 {
 		ticker := time.NewTicker(timeout * 1000000000)
 		var boolResp bool
-		go pushTest (cwd, response, errLog, processChan)
+		go pushTest(cwd, response, errLog, processChan)
 		procResp = <-processChan
 		select {
 		case boolResp = <-response:
 			if boolResp == false {
-				return os.NewError ("Test case did not return normal")
+				return os.NewError("Test case did not return normal")
 			}
 		case <-ticker.C:
-			errLog.WriteString ("GOSTRESS TIMEOUT!!!\n")
+			errLog.WriteString("GOSTRESS TIMEOUT!!!\n")
 			syscall.Kill(procResp.Pid, syscall.SIGQUIT)
-			return os.NewError ("Test case timeout")
+			return os.NewError("Test case timeout")
 		}
 	} else {
-		go pushTest (cwd, response, errLog, processChan)
+		go pushTest(cwd, response, errLog, processChan)
 		procResp = <-processChan
 		select {
-			case boolResp := <-response:
-			if (boolResp == false) {
-				return os.NewError ("Test case did not return normal")
+		case boolResp := <-response:
+			if boolResp == false {
+				return os.NewError("Test case did not return normal")
 			}
 		}
 	}
@@ -375,8 +383,8 @@ func executeSingleTest(test string) os.Error {
 	return nil
 }
 
-func pushTest (cwd string, response chan bool, errLog *os.File, processChan chan *os.Process) {
-	myProcess, err := os.StartProcess("test", []string{"test"}, []string{"PATH="+os.Getenv("PATH"),"GOROOT=" + cwd + "/go.gostress","GOMAXPROCS="+strconv.Itoa(gomaxproc)}, "./work", []*os.File{os.Stdin, nil, errLog})
+func pushTest(cwd string, response chan bool, errLog *os.File, processChan chan *os.Process) {
+	myProcess, err := os.StartProcess("test", []string{"test"}, []string{"PATH=" + os.Getenv("PATH"), "GOROOT=" + cwd + "/go.gostress", "GOMAXPROCS=" + strconv.Itoa(gomaxproc)}, "./work", []*os.File{os.Stdin, nil, errLog})
 	if err != nil {
 		processChan <- nil
 		response <- false
@@ -559,7 +567,7 @@ func runTest(testMain *TestMain, testName string, typeOfTest string, testCount i
 		filename = "pTest" + testMain.underscorePkgName() + "_" + strconv.Itoa(nthTime) + ".go"
 		fullName = testMain.pkgName + ".head"
 	} else {
-		filename = strings.Join([]string{"sTest", testMain.underscorePkgName(), "", strconv.Itoa(testCount), "_", strconv.Itoa(nthTime),".go"}, "")
+		filename = strings.Join([]string{"sTest", testMain.underscorePkgName(), "", strconv.Itoa(testCount), "_", strconv.Itoa(nthTime), ".go"}, "")
 		fullName = testMain.pkgName + "." + testName
 	}
 
@@ -602,7 +610,7 @@ func generateSurvey(testMains []*TestMain) os.Error {
 	fmt.Printf("blackList: %s\n", blackList)
 	resultFile, err := os.Open("result.file", os.O_RDWR|os.O_CREAT|os.O_TRUNC, 0764)
 	if err != nil {
-		panic (err)
+		panic(err)
 	}
 
 	for _, testMain := range testMains {
@@ -616,7 +624,7 @@ func generateSurvey(testMains []*TestMain) os.Error {
 				}
 			}
 			testCount = testCount + 1
-			resultFile.WriteString (test + ":" + strconv.Itoa(failures) + "\n")
+			resultFile.WriteString(test + ":" + strconv.Itoa(failures) + "\n")
 		}
 		for _, benchmark := range testMain.benchmarks {
 			failures := 0
@@ -627,7 +635,7 @@ func generateSurvey(testMains []*TestMain) os.Error {
 				}
 			}
 			testCount = testCount + 1
-			resultFile.WriteString (benchmark + ":" + strconv.Itoa(failures) + "\n")
+			resultFile.WriteString(benchmark + ":" + strconv.Itoa(failures) + "\n")
 		}
 		failures := 0
 		for i := 0; i < reruns; i++ {
@@ -636,7 +644,7 @@ func generateSurvey(testMains []*TestMain) os.Error {
 				failures++
 			}
 		}
-		resultFile.WriteString (testMain.pkgName + ":" + strconv.Itoa(failures) + "\n")
+		resultFile.WriteString(testMain.pkgName + ":" + strconv.Itoa(failures) + "\n")
 	}
 	resultFile.Close()
 	fmt.Printf("SURVEY DONE\n")
@@ -663,8 +671,8 @@ func (arr MapEntryArray) Swap(i, j int) {
 }
 
 type testRecord struct {
-	name string
-	failures int
+	name         string
+	failures     int
 	failureFiles []string
 	origFileName string
 }
@@ -699,7 +707,6 @@ func generateReport() os.Error {
 		panic(err)
 	}
 
-
 	packageMap := make(map[string]setTestRecord)
 
 	files, err = ioutil.ReadDir(dirName)
@@ -727,7 +734,7 @@ func generateReport() os.Error {
 			// >>package<<.Class
 			set := packageMap[details[0]]
 			if set == nil {
-				set = make (setTestRecord)
+				set = make(setTestRecord)
 			}
 			// package.>>Class<<
 			record := set[details[1]]
@@ -740,7 +747,7 @@ func generateReport() os.Error {
 			coreFileName := f.Name[0:strings.LastIndex(f.Name, "_")]
 			record.failures = 0
 			for _, outputF := range files {
-				if !outputF.IsDirectory() && strings.HasSuffix (outputF.Name, ".go.output") && strings.Contains(outputF.Name, coreFileName) {
+				if !outputF.IsDirectory() && strings.HasSuffix(outputF.Name, ".go.output") && strings.Contains(outputF.Name, coreFileName) {
 					record.failures = record.failures + 1
 					var contains bool = false
 					for _, ent := range record.failureFiles {
@@ -749,7 +756,7 @@ func generateReport() os.Error {
 						}
 					}
 					if !contains {
-						record.failureFiles = append (record.failureFiles, outputF.Name)
+						record.failureFiles = append(record.failureFiles, outputF.Name)
 					}
 				}
 			}
@@ -844,12 +851,12 @@ func generateReport() os.Error {
 			file.WriteString("<table width=\"100%\" height=\"100%\">")
 			file.WriteString("<tr>\n")
 			for i := 0; i < packRecord.failures; i++ {
-				file.WriteString ("<td style=\"background-color: ")
+				file.WriteString("<td style=\"background-color: ")
 				file.WriteString("#FF0000")
 				file.WriteString("\" width=\"10\"></td>")
 			}
 			for i := packRecord.failures; i < reruns; i++ {
-				file.WriteString ("<td style=\"background-color: ")
+				file.WriteString("<td style=\"background-color: ")
 				file.WriteString("#00FF00")
 				file.WriteString("\" width=\"10\"></td>")
 			}
@@ -881,9 +888,9 @@ func generateReport() os.Error {
 	return nil
 }
 
-func containsFault (detail setTestRecord) bool{
+func containsFault(detail setTestRecord) bool {
 	for _, v := range detail {
-		if (v.failures > 0) {
+		if v.failures > 0 {
 			return true
 		}
 	}
@@ -1025,8 +1032,8 @@ func init() {
 	flag.IntVar(&iters, "iters", 100, "iterations per goroutine")
 	flag.StringVar(&mode, "mode", RUNNER, "mode of operation, either \"runner\" or \"survey\"")
 	flag.Int64Var(&timeout, "timeout", 600, "timeout for each individual test (seconds)")
-	flag.IntVar (&gomaxproc, "gomaxproc", 10, "set GOMAXPROC value during testing")
-	flag.IntVar (&reruns, "reruns", 10, "set amount by which each test must be rerun")
+	flag.IntVar(&gomaxproc, "gomaxproc", 10, "set GOMAXPROC value during testing")
+	flag.IntVar(&reruns, "reruns", 10, "set amount by which each test must be rerun")
 	flag.Parse()
 	GOROOT = os.Getenv("GOROOT")
 	if GOROOT == "" {
@@ -1041,4 +1048,3 @@ func init() {
 	}
 	GOROOT = path.Clean(GOROOT)
 }
-
